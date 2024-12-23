@@ -6,6 +6,7 @@ import requests
 import json
 from transformers import DistilBertTokenizer, TFDistilBertModel
 import tensorflow as tf
+from langchain.llms import OpenAI
 from langchain import PromptTemplate, LLMChain
 from langchain.memory import ConversationBufferMemory
 
