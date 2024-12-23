@@ -203,7 +203,7 @@ def main():
 
                     with st.spinner('Génération de la réponse...'):
                         response = generate_response_single(query, [article['_source'] for article in articles])
-                        st.subheader("Réponse générée :")
+                        st.subheader("ChatLaw :")
                         st.markdown(f"<strong>{response}</strong>", unsafe_allow_html=True)
                         index_question_in_elasticsearch(query, response, ngrok_url)
                 else:
