@@ -119,15 +119,18 @@ def classify_question(query_text):
 # Fonction pour générer une réponse unique en fonction de plusieurs articles
 def generate_response_single(question, articles):
     context = "\n\n".join([f"Article {i+1}: {article['text']}" for i, article in enumerate(articles)])
-    prompt = f"""Contexte : {context}\nQuestion : {question}\nGénère une réponse pertinente en fonction du contexte ci-dessus et de la question posée en citant tous les articles utilisés dans la réponse."""
+    prompt = f"""Contexte (Burkina Faso) : {context}\n
+    Question : {question}\n
+    Génère une réponse pertinente en fonction du contexte burkinabè ci-dessus et de la question posée, en citant tous les articles utilisés dans la réponse."""
+    response = gemini_model.generate_content(prompt)
+    return response.text
+# Fonction pour générer une réponse lorsque la question est classée dans "general_embeddings"
+def generate_response_general(question):
+    prompt = f"""Question (Burkina Faso) : {question}\n
+    Génère une réponse pertinente à cette question dans le contexte juridique et administratif du Burkina Faso. Notez que cette réponse est générée par un modèle automatique et il est conseillé de la vérifier."""
     response = gemini_model.generate_content(prompt)
     return response.text
 
-# Fonction pour générer une réponse lorsque la question est classée dans "general_embeddings"
-def generate_response_general(question):
-    prompt = f"""Question : {question}\nGénère une réponse pertinente à cette question. Notez que cette réponse est générée par un modèle automatique et il est conseillé de la vérifier."""
-    response = gemini_model.generate_content(prompt)
-    return response.text
 # Fonction principale Streamlit
 def main():
     st.set_page_config(page_title="Chatbot de réponses juridiques", page_icon="⚖️", layout="wide")
