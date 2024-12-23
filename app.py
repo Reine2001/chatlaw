@@ -162,7 +162,11 @@ def main():
             color: #4CAF50;
         }
         </style>
-    """, unsafe_allow_html=True)
+    """,<p style="text-align: center; color: #4CAF50; font-size: 18px;">
+    LegiChat est un chatbot qui fournit des réponses juridiques basées sur les textes en vigueur au Burkina Faso. 
+    Il vous aide à naviguer à travers les lois et décrets, en répondant à vos questions sur des sujets juridiques spécifiques.
+    </p>
+""", unsafe_allow_html=True)
 
     # Diviser la page en 3 colonnes principales
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -173,7 +177,7 @@ def main():
 
         # Afficher l'image au centre de la sous-colonne du milieu
         with subcol2:
-            st.image("icone1.png", caption="ChatLaw", width=150)
+            st.image("icone1.png", caption="LegiChat", width=150)
 
     # Titre principal sous l'image
     st.markdown("<h1>Comment puis-je vous aider?</h1>", unsafe_allow_html=True)
@@ -190,7 +194,7 @@ def main():
             if category == "general_embeddings":
                 with st.spinner('Génération de la réponse...'):
                     response = generate_response_general(query)
-                    st.subheader("ChatLaw :")
+                    st.subheader("LegiChat :")
                     st.markdown(f"<strong>{response}</strong>", unsafe_allow_html=True)
                     st.info("Cette réponse a été générée par un modèle automatique. Veuillez vérifier les informations.")
                     index_question_in_elasticsearch(query, response, ngrok_url)
@@ -206,7 +210,7 @@ def main():
 
                     with st.spinner('Génération de la réponse...'):
                         response = generate_response_single(query, [article['_source'] for article in articles])
-                        st.subheader("ChatLaw :")
+                        st.subheader("LegiChat :")
                         st.markdown(f"<strong>{response}</strong>", unsafe_allow_html=True)
                         index_question_in_elasticsearch(query, response, ngrok_url)
                 else:
