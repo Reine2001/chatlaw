@@ -7,7 +7,6 @@ import json
 from transformers import DistilBertTokenizer, TFDistilBertModel
 import tensorflow as tf
 from langchain import PromptTemplate, LLMChain
-from langchain.llms import OpenAI
 from langchain.memory import ConversationBufferMemory
 
 # Charger les variables d'environnement
