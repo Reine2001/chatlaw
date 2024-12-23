@@ -190,7 +190,7 @@ def main():
             if category == "general_embeddings":
                 with st.spinner('Génération de la réponse...'):
                     response = generate_response_general(query)
-                    st.subheader("Réponse générée par ChatLaw :")
+                    st.subheader("ChatLaw :")
                     st.markdown(f"<strong>{response}</strong>", unsafe_allow_html=True)
                     st.info("Cette réponse a été générée par un modèle automatique. Veuillez vérifier les informations.")
                     index_question_in_elasticsearch(query, response, ngrok_url)
