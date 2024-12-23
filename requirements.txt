@@ -3,6 +3,7 @@ python-dotenv
 google-generativeai
 requests
 transformers
+keras
 tensorflow
 langchain
 openai
