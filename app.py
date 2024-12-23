@@ -41,7 +41,7 @@ prompt = PromptTemplate(
 )
 
 # Chaîne LangChain avec mémoire de conversation
-llm_chain = LLMChain(prompt=prompt, llm=OpenAI(api_key=st.secrets["OPENAI_API_KEY"]), memory=memory)
+llm_chain = LLMChain(prompt=prompt, llm=OpenAI(api_key=st.secrets["GOOGLE_API_KEY"]), memory=memory)
 
 # Fonction pour créer un embedding à partir d'une question
 def generate_embedding(question):
