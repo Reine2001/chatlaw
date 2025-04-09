@@ -6,18 +6,18 @@ import requests
 import json
 from transformers import DistilBertTokenizer, TFDistilBertModel
 import tensorflow as tf
-from langchain.llms import OpenAI
 from langchain import PromptTemplate, LLMChain
+from langchain.llms import OpenAI
 from langchain.memory import ConversationBufferMemory
 
 # Charger les variables d'environnement
 load_dotenv()
 
 # URL ngrok ou Elasticsearch local
-ngrok_url = st.secrets["NGROK_URL"]
+ngrok_url = 'https://ebed-102-216-123-30.ngrok-free.app'
 
 # Configuration du modèle Gemini Flash 1.5
-genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 gen_config = {
     "temperature": 0.5,
     "max_output_tokens": 512
@@ -42,7 +42,7 @@ prompt = PromptTemplate(
 )
 
 # Chaîne LangChain avec mémoire de conversation
-llm_chain = LLMChain(prompt=prompt, llm=OpenAI(api_key=st.secrets["GOOGLE_API_KEY"]), memory=memory)
+llm_chain = LLMChain(prompt=prompt, llm=OpenAI(api_key=os.environ["GOOGLE_API_KEY"]), memory=memory)
 
 # Fonction pour créer un embedding à partir d'une question
 def generate_embedding(question):
@@ -73,6 +73,7 @@ def index_question_in_elasticsearch(question, response, ngrok_url):
             print(f"Erreur d'indexation : {response.status_code} - {response.text}")
     except requests.exceptions.RequestException as e:
         print(f"Erreur lors de la requête à Elasticsearch : {e}")
+
 # Fonction pour rechercher des articles pertinents dans Elasticsearch
 def search_full_text(ngrok_url, index_name, query_text):
     search_query = {
@@ -119,68 +120,40 @@ def classify_question(query_text):
 # Fonction pour générer une réponse unique en fonction de plusieurs articles
 def generate_response_single(question, articles):
     context = "\n\n".join([f"Article {i+1}: {article['text']}" for i, article in enumerate(articles)])
-    prompt = f"""Contexte (Burkina Faso) : {context}\n
-    Question : {question}\n
-    Génère une réponse pertinente en fonction du contexte burkinabè ci-dessus et de la question posée, en citant tous les articles utilisés dans la réponse."""
-    response = gemini_model.generate_content(prompt)
-    return response.text
-# Fonction pour générer une réponse lorsque la question est classée dans "general_embeddings"
-def generate_response_general(question):
-    prompt = f"""Question (Burkina Faso) : {question}\n
-    Génère une réponse pertinente à cette question dans le contexte juridique et administratif du Burkina Faso. Notez que cette réponse est générée par un modèle automatique et il est conseillé de la vérifier."""
+    prompt = f"""Contexte : {context}\nQuestion : {question}\nGénère une réponse pertinente en fonction du contexte ci-dessus et de la question posée en citant tous les articles utilisés dans la réponse."""
     response = gemini_model.generate_content(prompt)
     return response.text
 
+# Fonction pour générer une réponse lorsque la question est classée dans "general_embeddings"
+def generate_response_general(question):
+    prompt = f"""Question : {question}\nGénère une réponse pertinente à cette question. Notez que cette réponse est générée par un modèle automatique et il est conseillé de la vérifier."""
+    response = gemini_model.generate_content(prompt)
+    return response.text
+
+
+import base64
 # Fonction principale Streamlit
 def main():
     st.set_page_config(page_title="Chatbot de réponses juridiques", page_icon="⚖️", layout="wide")
 
-    # Ajout de styles CSS personnalisés avec couleur de fond
-    st.markdown("""
-        <style>
-        /* Appliquer la couleur de fond à l'élément principal de l'application */
-        .main {
-            background-color: #f0f0f0;
-        }
+        # Affichage de l'image au centre
+    def get_image_base64(image_path):
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
 
-        h1 {
-            color: #4CAF50;
-            font-size: 3em;
-            text-align: center;
-        }
+    image_base64 = get_image_base64("icone1.png")
 
-        .stButton button {
-            background-color: #4CAF50;
-            color: white;
-            font-size: 16px;
-            border-radius: 10px;
-        }
+    st.markdown(
+    f"<div style='text-align: center;'><img src='data:image/png;base64,{image_base64}' width='150'></div>", 
+    unsafe_allow_html=True
+)
 
-        .stTextInput > label {
-            font-size: 18px;
-            font-weight: bold;
-            color: #4CAF50;
-        }
-        </style>
-    """,<p style="text-align: center; color: #4CAF50; font-size: 18px;">
-    LegiChat est un chatbot qui fournit des réponses juridiques basées sur les textes en vigueur au Burkina Faso. 
-    Il vous aide à naviguer à travers les lois et décrets, en répondant à vos questions sur des sujets juridiques spécifiques.
-    </p>
-""", unsafe_allow_html=True)
-
-    # Diviser la page en 3 colonnes principales
-    col1, col2, col3 = st.columns([1, 2, 1])
-
-    with col2:
-        # Diviser la colonne du milieu en 3 sous-colonnes
-        subcol1, subcol2, subcol3 = st.columns([1, 2, 1])
-
-        # Afficher l'image au centre de la sous-colonne du milieu
-        with subcol2:
-            st.image("icone1.png", caption="LegiChat", width=150)
-
-    # Titre principal sous l'image
-    st.markdown("<h1>Comment puis-je vous aider?</h1>", unsafe_allow_html=True)
+    st.markdown(
+    """
+    <h1 style='text-align: center;'>LegiChat - Assistant juridique IA</h1>
+    """,
+    unsafe_allow_html=True
+)
 
     # Saisie de la question
     query = st.text_input("", placeholder="Tapez ici...")
@@ -194,7 +167,7 @@ def main():
             if category == "general_embeddings":
                 with st.spinner('Génération de la réponse...'):
                     response = generate_response_general(query)
-                    st.subheader("LegiChat :")
+                    st.subheader("Réponse générée par le modèle :")
                     st.markdown(f"<strong>{response}</strong>", unsafe_allow_html=True)
                     st.info("Cette réponse a été générée par un modèle automatique. Veuillez vérifier les informations.")
                     index_question_in_elasticsearch(query, response, ngrok_url)
@@ -210,7 +183,7 @@ def main():
 
                     with st.spinner('Génération de la réponse...'):
                         response = generate_response_single(query, [article['_source'] for article in articles])
-                        st.subheader("LegiChat :")
+                        st.subheader("ChatLaw :")
                         st.markdown(f"<strong>{response}</strong>", unsafe_allow_html=True)
                         index_question_in_elasticsearch(query, response, ngrok_url)
                 else:
@@ -220,4 +193,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
