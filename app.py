@@ -1,80 +1,55 @@
 import streamlit as st
 import os
-from dotenv import load_dotenv
-import google.generativeai as genai
+import base64
 import requests
 import json
+from dotenv import load_dotenv
+from streamlit_chat import message
 from transformers import DistilBertTokenizer, TFDistilBertModel
 import tensorflow as tf
-from langchain import PromptTemplate, LLMChain
-from langchain.llms import OpenAI
-from langchain.memory import ConversationBufferMemory
+import google.generativeai as genai
 
-# Charger les variables d'environnement
+
 load_dotenv()
-
-# URL ngrok ou Elasticsearch local
-ngrok_url = 'https://7c5d-102-180-19-51.ngrok-free.app'
-
-# Configuration du modèle Gemini Flash 1.5
 genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+ngrok_url = os.environ["NGROK_URL"]
+
+
 gen_config = {
     "temperature": 0.5,
     "max_output_tokens": 512
 }
-
 gemini_model = genai.GenerativeModel(
     model_name='gemini-1.5-flash',
     generation_config=gen_config
 )
 
-# Charger le tokenizer et le modèle DistilBERT pour générer des embeddings
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 distil_model = TFDistilBertModel.from_pretrained('distilbert-base-uncased')
 
-# Mémoire conversationnelle
-memory = ConversationBufferMemory(input_key="question", memory_key="history")
 
-# Prompt LangChain
-prompt = PromptTemplate(
-    input_variables=["context", "question"],
-    template="""Contexte : {context}\nQuestion : {question}\nGénère une réponse en fonction du contexte et de la question ci-dessus."""
-)
-
-# Chaîne LangChain avec mémoire de conversation
-llm_chain = LLMChain(prompt=prompt, llm=OpenAI(api_key=os.environ["GOOGLE_API_KEY"]), memory=memory)
-
-# Fonction pour créer un embedding à partir d'une question
 def generate_embedding(question):
     inputs = tokenizer(question, return_tensors='tf', truncation=True, max_length=512)
     outputs = distil_model(**inputs)
     embedding = tf.reduce_mean(outputs.last_hidden_state, axis=1).numpy().flatten()
     return embedding.tolist()
 
-# Fonction pour indexer une nouvelle question et réponse dans Elasticsearch
 def index_question_in_elasticsearch(question, response, ngrok_url):
     embedding = generate_embedding(question)
-    
     doc = {
         'question': question,
         'response': response,
         'embedding': embedding
     }
-
     try:
-        response = requests.post(
-            f'{ngrok_url}/questions_reponses/_doc/', 
-            headers={"Content-Type": "application/json"}, 
+        requests.post(
+            f'{ngrok_url}/questions_reponses/_doc/',
+            headers={"Content-Type": "application/json"},
             data=json.dumps(doc)
         )
-        if response.status_code in [200, 201]:
-            print("Question, réponse et embedding indexés avec succès.")
-        else:
-            print(f"Erreur d'indexation : {response.status_code} - {response.text}")
-    except requests.exceptions.RequestException as e:
-        print(f"Erreur lors de la requête à Elasticsearch : {e}")
+    except requests.exceptions.RequestException:
+        pass
 
-# Fonction pour rechercher des articles pertinents dans Elasticsearch
 def search_full_text(ngrok_url, index_name, query_text):
     search_query = {
         "query": {
@@ -83,23 +58,17 @@ def search_full_text(ngrok_url, index_name, query_text):
             }
         }
     }
-
     try:
         response = requests.post(f'{ngrok_url}/{index_name}/_search',
                                  headers={"Content-Type": "application/json"},
                                  data=json.dumps(search_query))
-
         if response.status_code == 200:
-            results = response.json()
-            return results['hits']['hits']
+            return response.json()['hits']['hits']
         else:
-            st.error(f"Erreur lors de la recherche : {response.text}")
             return None
-    except requests.exceptions.RequestException as e:
-        st.error(f"Erreur de connexion : {e}")
+    except requests.exceptions.RequestException:
         return None
 
-# Définir la fonction de classification de question selon les institutions
 def classify_question(query_text):
     droits_humains_keywords = ["handicap", "indigence", "droits humains", "protection des personnes handicapées", "inclusion sociale", "personnes vulnérables","torture"]
     police_judiciaire_keywords = ["violence", "crimes", "délits", "prévention de la violence", "justice pénale", "enquête judiciaire", "procédure pénale","contraventions","circulation routière","stationnements","categories","responsabilité pénale","mineur"]
@@ -117,79 +86,82 @@ def classify_question(query_text):
     else:
         return "general_embeddings"
 
-# Fonction pour générer une réponse unique en fonction de plusieurs articles
 def generate_response_single(question, articles):
     context = "\n\n".join([f"Article {i+1}: {article['text']}" for i, article in enumerate(articles)])
     prompt = f"""Contexte : {context}\nQuestion : {question}\nGénère une réponse pertinente en fonction du contexte ci-dessus et de la question posée en citant tous les articles utilisés dans la réponse."""
     response = gemini_model.generate_content(prompt)
     return response.text
 
-# Fonction pour générer une réponse lorsque la question est classée dans "general_embeddings"
 def generate_response_general(question):
     prompt = f"""Question : {question}\nGénère une réponse pertinente à cette question. Notez que cette réponse est générée par un modèle automatique et il est conseillé de la vérifier."""
     response = gemini_model.generate_content(prompt)
     return response.text
 
+def get_image_base64(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
 
-import base64
-# Fonction principale Streamlit
-def main():
-    st.set_page_config(page_title="Chatbot de réponses juridiques", page_icon="⚖️", layout="wide")
 
-        # Affichage de l'image au centre
-    def get_image_base64(image_path):
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
+st.set_page_config(page_title="Chatbot de réponses juridiques", page_icon="⚖️", layout="centered")
 
-    image_base64 = get_image_base64("icone1.png")
-
-    st.markdown(
-    f"<div style='text-align: center;'><img src='data:image/png;base64,{image_base64}' width='150'></div>", 
+image_base64 = get_image_base64("icone1.png")
+st.markdown(
+    f"<div style='text-align: center;'><img src='data:image/png;base64,{image_base64}' width='150'></div>",
     unsafe_allow_html=True
 )
+st.markdown("<h1 style='text-align: center;'>LegiChat - Assistant juridique IA</h1>", unsafe_allow_html=True)
 
-    st.markdown(
-    """
-    <h1 style='text-align: center;'>LegiChat - Assistant juridique IA</h1>
-    """,
-    unsafe_allow_html=True
-)
+if "messages" not in st.session_state:
+    st.session_state["messages"] = []
+if "user_input" not in st.session_state:
+    st.session_state["user_input"] = ""
+if "article_results" not in st.session_state:
+    st.session_state["article_results"] = []
 
-    # Saisie de la question
-    query = st.text_input("", placeholder="Tapez ici...")
+def handle_input():
+    query = st.session_state["user_input"]
+    if query.strip():
+        st.session_state["messages"].append({"role": "user", "content": query})
 
-    # Bouton pour envoyer la question
-    if st.button("Envoyer la question"):
-        if query:
-            with st.spinner('Classification de la question...'):
-                category = classify_question(query)
-
+        with st.spinner("Traitement en cours..."):
+            category = classify_question(query)
             if category == "general_embeddings":
-                with st.spinner('Génération de la réponse...'):
-                    response = generate_response_general(query)
-                    st.subheader("Réponse générée par le modèle :")
-                    st.markdown(f"<strong>{response}</strong>", unsafe_allow_html=True)
-                    st.info("Cette réponse a été générée par un modèle automatique. Veuillez vérifier les informations.")
-                    index_question_in_elasticsearch(query, response, ngrok_url)
+                response = generate_response_general(query)
+                st.session_state["messages"].append({"role": "assistant", "content": response})
+                index_question_in_elasticsearch(query, response, ngrok_url)
+                st.session_state["article_results"] = []
             else:
-                with st.spinner('Recherche des articles pertinents...'):
-                    articles = search_full_text(ngrok_url, category, query)
-
+                articles = search_full_text(ngrok_url, category, query)
                 if articles:
-                    st.subheader("Articles trouvés :")
-                    for i, article in enumerate(articles):
-                        with st.expander(f"Article {i+1}"):
-                            st.markdown(article['_source']['text'])
-
-                    with st.spinner('Génération de la réponse...'):
-                        response = generate_response_single(query, [article['_source'] for article in articles])
-                        st.subheader("ChatLaw :")
-                        st.markdown(f"<strong>{response}</strong>", unsafe_allow_html=True)
-                        index_question_in_elasticsearch(query, response, ngrok_url)
+                    articles_sources = [a['_source'] for a in articles]
+                    response = generate_response_single(query, articles_sources)
+                    st.session_state["messages"].append({"role": "assistant", "content": response})
+                    index_question_in_elasticsearch(query, response, ngrok_url)
+                    st.session_state["article_results"] = articles
                 else:
-                    st.error("Aucun article trouvé.")
-        else:
-            st.error("Veuillez entrer une question avant de soumettre.")
+                    st.session_state["messages"].append({
+                        "role": "assistant",
+                        "content": "Aucun article pertinent trouvé pour cette question."
+                    })
+                    st.session_state["article_results"] = []
 
-if __name__ == "__main__":
-    main()
+    st.session_state["user_input"] = ""
+
+for msg in st.session_state["messages"]:
+    message(msg["content"], is_user=(msg["role"] == "user"))
+
+st.write("---")
+
+
+if st.session_state["article_results"]:
+    st.markdown("### 📄 Articles utilisés :")
+    for i, article in enumerate(st.session_state["article_results"]):
+        with st.expander(f"Article {i+1}"):
+            st.markdown(article['_source']['text'])
+
+st.text_input(
+    "Pose ta question ici",
+    key="user_input",
+    placeholder="Pose ta question ici...",
+    on_change=handle_input
+)
